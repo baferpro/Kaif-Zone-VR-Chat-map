@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VRC.SDKBase;
+using Random = UnityEngine.Random;
 
 
 namespace VRCPrefabs.CyanEmu
@@ -30,6 +31,7 @@ namespace VRCPrefabs.CyanEmu
 
         private int spawnedObjectCount_;
         private bool networkReady_;
+        private int spawnOrder_ = 0;
 
         // TODO save syncables
         //private CyanEmuBufferManager bufferManager_;
@@ -87,6 +89,19 @@ namespace VRCPrefabs.CyanEmu
             
             // This is no longer used as of SDK 2021.03.22.18.27
             VRC.Udon.UdonBehaviour.SendCustomNetworkEventHook = CyanEmuUdonHelper.SendCustomNetworkEventHook;
+            
+            // TODO 
+            //VRC.Udon.UdonBehaviour.CheckValid
+            VRC.SDK3.Components.VRCObjectPool.OnInit = CyanEmuObjectPoolHelper.OnInit;
+            VRC.SDK3.Components.VRCObjectPool.OnReturn = CyanEmuObjectPoolHelper.OnReturn;
+            VRC.SDK3.Components.VRCObjectPool.OnSpawn = CyanEmuObjectPoolHelper.OnSpawn;
+            
+            VRC.SDK3.Components.VRCObjectSync.FlagDiscontinuityHook = CyanEmuObjectSyncHelper.FlagDiscontinuityHook;
+            VRC.SDK3.Components.VRCObjectSync.OnAwake = CyanEmuObjectSyncHelper.InitializeObjectSync;
+            VRC.SDK3.Components.VRCObjectSync.RespawnHandler = CyanEmuObjectSyncHelper.RespawnObject;
+            VRC.SDK3.Components.VRCObjectSync.TeleportHandler = CyanEmuObjectSyncHelper.TeleportTo;
+            VRC.SDK3.Components.VRCObjectSync.SetGravityHook = CyanEmuObjectSyncHelper.SetUseGravity;
+            VRC.SDK3.Components.VRCObjectSync.SetKinematicHook = CyanEmuObjectSyncHelper.SetIsKinematic;
 #endif
 
 #if VRC_SDK_VRCSDK2
@@ -94,6 +109,10 @@ namespace VRCPrefabs.CyanEmu
             VRCSDK2.VRC_ObjectSync.Initialize += CyanEmuObjectSyncHelper.InitializeObjectSync;
             VRCSDK2.VRC_ObjectSync.TeleportHandler += CyanEmuObjectSyncHelper.TeleportTo;
             VRCSDK2.VRC_ObjectSync.RespawnHandler += CyanEmuObjectSyncHelper.RespawnObject;
+            VRCSDK2.VRC_ObjectSync.SetIsKinematic += CyanEmuObjectSyncHelper.SetIsKinematic;
+            VRCSDK2.VRC_ObjectSync.SetUseGravity += CyanEmuObjectSyncHelper.SetUseGravity;
+            VRCSDK2.VRC_ObjectSync.GetIsKinematic += CyanEmuObjectSyncHelper.GetIsKinematic;
+            VRCSDK2.VRC_ObjectSync.GetUseGravity += CyanEmuObjectSyncHelper.GetUseGravity;
             VRCSDK2.VRC_PlayerMods.Initialize = CyanEmuPlayerModsHelper.InitializePlayerMods;
             VRCSDK2.VRC_SyncAnimation.Initialize = CyanEmuSyncAnimationHelper.InitializationDelegate;
 #endif
@@ -142,6 +161,8 @@ namespace VRCPrefabs.CyanEmu
             VRCPlayerApi._SetWalkSpeed = CyanEmuPlayerManager.SetWalkSpeed;
             VRCPlayerApi._GetJumpImpulse = CyanEmuPlayerManager.GetJumpImpulse;
             VRCPlayerApi._SetJumpImpulse = CyanEmuPlayerManager.SetJumpImpulse;
+            VRCPlayerApi._GetStrafeSpeed = CyanEmuPlayerManager.GetStrafeSpeed;
+            VRCPlayerApi._SetStrafeSpeed = CyanEmuPlayerManager.SetStrafeSpeed;
             VRCPlayerApi._GetVelocity = CyanEmuPlayerManager.GetVelocity;
             VRCPlayerApi._SetVelocity = CyanEmuPlayerManager.SetVelocity;
             VRCPlayerApi._GetPosition = CyanEmuPlayerManager.GetPosition;
@@ -159,47 +180,28 @@ namespace VRCPrefabs.CyanEmu
             VRCPlayerApi._CombatSetDamageGraphic = CyanEmuCombatSystemHelper.CombatSetDamageGraphic;
             VRCPlayerApi._CombatGetDestructible = CyanEmuCombatSystemHelper.CombatGetDestructible;
             VRCPlayerApi._CombatSetCurrentHitpoints = CyanEmuCombatSystemHelper.CombatSetCurrentHitpoints;
-
+            
+            VRCPlayerApi._SetAvatarAudioVolumetricRadius = CyanEmuPlayerManager.SetAvatarAudioVolumetricRadius;
+            VRCPlayerApi._SetAvatarAudioNearRadius = CyanEmuPlayerManager.SetAvatarAudioNearRadius;
+            VRCPlayerApi._SetAvatarAudioFarRadius = CyanEmuPlayerManager.SetAvatarAudioFarRadius;
+            VRCPlayerApi._SetAvatarAudioGain = CyanEmuPlayerManager.SetAvatarAudioGain;
+            VRCPlayerApi._SetVoiceLowpass = CyanEmuPlayerManager.SetVoiceLowpass;
+            VRCPlayerApi._SetVoiceVolumetricRadius = CyanEmuPlayerManager.SetVoiceVolumetricRadius;
+            VRCPlayerApi._SetVoiceDistanceFar = CyanEmuPlayerManager.SetVoiceDistanceFar;
+            VRCPlayerApi._SetVoiceDistanceNear = CyanEmuPlayerManager.SetVoiceDistanceNear;
+            VRCPlayerApi._SetVoiceGain = CyanEmuPlayerManager.SetVoiceGain;
+            
             VRC_SpatialAudioSource.Initialize = CyanEmuSpatialAudioHelper.InitializeAudio;
 
             // New methods added. Try not to break older sdks
             // TODO figure out a better way...
 
-            // 2020-10-27 
-            var _SetAvatarAudioVolumetricRadius = typeof(VRCPlayerApi).GetField("_SetAvatarAudioVolumetricRadius", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetAvatarAudioVolumetricRadius != null) _SetAvatarAudioVolumetricRadius.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetAvatarAudioVolumetricRadius);
-
-            var _SetAvatarAudioNearRadius = typeof(VRCPlayerApi).GetField("_SetAvatarAudioNearRadius", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetAvatarAudioNearRadius != null) _SetAvatarAudioNearRadius.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetAvatarAudioNearRadius);
-
-            var _SetAvatarAudioFarRadius = typeof(VRCPlayerApi).GetField("_SetAvatarAudioFarRadius", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetAvatarAudioFarRadius != null) _SetAvatarAudioFarRadius.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetAvatarAudioFarRadius);
-
-            var _SetAvatarAudioGain = typeof(VRCPlayerApi).GetField("_SetAvatarAudioGain", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetAvatarAudioGain != null) _SetAvatarAudioGain.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetAvatarAudioGain);
-
-            var _SetVoiceLowpass = typeof(VRCPlayerApi).GetField("_SetVoiceLowpass", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetVoiceLowpass != null) _SetVoiceLowpass.SetValue(null, (Action<VRCPlayerApi, bool>)CyanEmuPlayerManager.SetVoiceLowpass);
-
-            var _SetVoiceVolumetricRadius = typeof(VRCPlayerApi).GetField("_SetVoiceVolumetricRadius", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetVoiceVolumetricRadius != null) _SetVoiceVolumetricRadius.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetVoiceVolumetricRadius);
-
-            var _SetVoiceDistanceFar = typeof(VRCPlayerApi).GetField("_SetVoiceDistanceFar", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetVoiceDistanceFar != null) _SetVoiceDistanceFar.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetVoiceDistanceFar);
-
-            var _SetVoiceDistanceNear = typeof(VRCPlayerApi).GetField("_SetVoiceDistanceNear", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetVoiceDistanceNear != null) _SetVoiceDistanceNear.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetVoiceDistanceNear);
-
-            var _SetVoiceGain = typeof(VRCPlayerApi).GetField("_SetVoiceGain", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetVoiceGain != null) _SetVoiceGain.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetVoiceGain);
-
+            // 2021-05-03
+            var isInstanceOwner = typeof(VRCPlayerApi).GetField("_isInstanceOwnerDelegate", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            if (isInstanceOwner != null) isInstanceOwner.SetValue(null, (Func<VRCPlayerApi, bool>)CyanEmuPlayerManager.IsInstanceOwner);
             
-            // 2020-11-16
-            var _GetStrafeSpeed = typeof(VRCPlayerApi).GetField("_GetStrafeSpeed", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_GetStrafeSpeed != null) _GetStrafeSpeed.SetValue(null, (Func<VRCPlayerApi, float>)CyanEmuPlayerManager.GetStrafeSpeed);
-
-            var _SetStrafeSpeed = typeof(VRCPlayerApi).GetField("_SetStrafeSpeed", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
-            if (_SetStrafeSpeed != null) _SetStrafeSpeed.SetValue(null, (Action<VRCPlayerApi, float>)CyanEmuPlayerManager.SetStrafeSpeed);
+            var isInstanceOwnerNetworking = typeof(Networking).GetField("_IsInstanceOwner", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
+            if (isInstanceOwnerNetworking != null) isInstanceOwnerNetworking.SetValue(null, (Func<bool>)CyanEmuPlayerManager.IsInstanceOwner);
         }
 
         private static void CreateInstance()
@@ -366,7 +368,7 @@ namespace VRCPrefabs.CyanEmu
             player.transform.parent = transform;
             player.layer = LayerMask.NameToLayer("Player");
             // TODO do this better
-            Transform spawn = GetSpawnPoint();
+            Transform spawn = GetSpawnPoint(true);
             player.transform.position = spawn.position;
             player.transform.rotation = Quaternion.Euler(0, spawn.rotation.eulerAngles.y, 0);
 
@@ -380,13 +382,42 @@ namespace VRCPrefabs.CyanEmu
             player.name = $"[{playerAPI.playerId}] {player.name}";
         }
 
-        private Transform GetSpawnPoint()
+        public static Transform GetNextSpawnPoint()
+        {
+            if (instance_ != null)
+            {
+                return instance_.GetSpawnPoint();
+            }
+            return null;
+        }
+        
+        private Transform GetSpawnPoint(bool remote = false)
         {
             if (descriptor_.spawns.Length == 0 || descriptor_.spawns[0] == null)
             {
                 throw new Exception("[CyanEmuMain] Cannot spawn player when descriptor does not have a spawn set!");
             }
 
+            // Remote players always restart the list, so for now, only first spawn
+            if (descriptor_.spawnOrder == VRC_SceneDescriptor.SpawnOrder.First || 
+                descriptor_.spawnOrder == VRC_SceneDescriptor.SpawnOrder.Demo || 
+                remote)
+            {
+                return descriptor_.spawns[0];
+            }
+            if (descriptor_.spawnOrder == VRC_SceneDescriptor.SpawnOrder.Random)
+            {
+                int spawn = Random.Range(0, descriptor_.spawns.Length);
+                return descriptor_.spawns[spawn];
+            }
+            if (descriptor_.spawnOrder == VRC_SceneDescriptor.SpawnOrder.Sequential)
+            {
+                Transform spawn = descriptor_.spawns[spawnOrder_];
+                spawnOrder_ = (spawnOrder_ + 1) % descriptor_.spawns.Length;
+                return spawn;
+            }
+            
+            // Fallback to first spawn point
             return descriptor_.spawns[0];
         }
 

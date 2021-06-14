@@ -12,6 +12,8 @@ namespace VRCPrefabs.CyanEmu
         private const string VERSION_FILE_PATH = "Assets/CyanEmu/version.txt";
         private const string GITHUB_URL = "https://github.com/CyanLaser/CyanEmu";
         private const string WIKI_URL = "https://github.com/CyanLaser/CyanEmu/wiki";
+        private const string DISCORD_URL = "https://discord.gg/TFgJKv66Zk";
+        private const string PATREON_URL = "https://www.patreon.com/CyanLaser";
 
         // General content
         private readonly GUIContent generalFoldoutGuiContent = new GUIContent("General Settings", "");
@@ -25,14 +27,16 @@ namespace VRCPrefabs.CyanEmu
         private readonly GUIContent playerControllerRunKeyGuiContent = new GUIContent("Run Key", "The button used to run. Running will make the player move faster.");
         private readonly GUIContent playerControllerCrouchKeyGuiContent = new GUIContent("Crouch Key", "The button used to crouch. Crouching will lower the camera midway to the floor and slow down the player.");
         private readonly GUIContent playerControllerProneKeyGuiContent = new GUIContent("Prone Key", "The button used to go prone. Going prone will lower the camera closer to the floor and slow down the player.");
-        private readonly GUIContent playerControllerCustomName = new GUIContent("Player Name", "Set a custom name for testing udon script name detection");
-
+        
         // Buffered Trigger content
         private readonly GUIContent bufferedTriggerFoldoutGuiContent = new GUIContent("Buffered Trigger Settings", "");
         private readonly GUIContent replayBufferedTriggerToggleGuiContent = new GUIContent("Replay Buffered Triggers", "If enabled, buffered triggers for this scene will be replayed at the start before all other triggers.");
         
-        //
-        private readonly GUIContent playerButtonsFoldoutGuiContent = new GUIContent("Add or Remove Players", "");
+        // Player settings
+        private readonly GUIContent playerButtonsFoldoutGuiContent = new GUIContent("Player Settings", "");
+        private readonly GUIContent localPlayerCustomNameGuiContent = new GUIContent("Local Player Name", "Set a custom name for the local player. Useful for testing udon script name detection");
+        private readonly GUIContent isInstanceOwnerGuiContent = new GUIContent("Is Instance Owner", "Set whether the local player is considered the instance owner");
+        private readonly GUIContent remotePlayerCustomNameGuiContent = new GUIContent("Remote Player Name", "Set a custom name for the next spawned remote player. Useful for testing udon script name detection");
 
 
 
@@ -140,21 +144,40 @@ namespace VRCPrefabs.CyanEmu
 
         private void DrawLinks()
         {
+            float width = EditorGUIUtility.currentViewWidth;
+            float buttonWidth = Mathf.Max((width - 45) * 0.5f, 100);
+            
             EditorGUILayout.BeginHorizontal();
             
             GUILayout.Space(10);
-            if (GUILayout.Button("Documentation", GUILayout.ExpandWidth(true)))
+            if (GUILayout.Button("Documentation", GUILayout.Width(buttonWidth)))
             {
                 Application.OpenURL(WIKI_URL);
             }
 
             GUILayout.Space(5);
 
-            if (GUILayout.Button("Github Repo", GUILayout.ExpandWidth(true)))
+            if (GUILayout.Button("Github Repo", GUILayout.Width(buttonWidth)))
             {
                 Application.OpenURL(GITHUB_URL);
             }
+
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.BeginHorizontal();
+            
             GUILayout.Space(10);
+            if (GUILayout.Button("Discord", GUILayout.Width(buttonWidth)))
+            {
+                Application.OpenURL(DISCORD_URL);
+            }
+
+            GUILayout.Space(5);
+
+            if (GUILayout.Button("Patreon", GUILayout.Width(buttonWidth)))
+            {
+                Application.OpenURL(PATREON_URL);
+            }
 
             EditorGUILayout.EndHorizontal();
         }
@@ -205,9 +228,6 @@ namespace VRCPrefabs.CyanEmu
                 settings_.crouchKey = (KeyCode)EditorGUILayout.EnumPopup(playerControllerCrouchKeyGuiContent, settings_.crouchKey);
                 settings_.proneKey = (KeyCode)EditorGUILayout.EnumPopup(playerControllerProneKeyGuiContent, settings_.proneKey);
                 
-                // custom name
-                settings_.customLocalPlayerName = EditorGUILayout.TextField(playerControllerCustomName, settings_.customLocalPlayerName);
-
                 EditorGUI.EndDisabledGroup();
 
                 RemoveIndent();
@@ -259,6 +279,13 @@ namespace VRCPrefabs.CyanEmu
             if (showPlayerButtons_)
             {
                 AddIndent();
+                
+                // custom name
+                settings_.customLocalPlayerName = EditorGUILayout.TextField(localPlayerCustomNameGuiContent, settings_.customLocalPlayerName);
+                
+                settings_.isInstanceOwner = EditorGUILayout.Toggle(isInstanceOwnerGuiContent, settings_.isInstanceOwner);
+                
+                // TODO have setting for spawning players in the room before you
 
                 EditorGUI.BeginDisabledGroup(!CyanEmuMain.HasInstance() || !Application.isPlaying);
 
@@ -273,7 +300,7 @@ namespace VRCPrefabs.CyanEmu
                 EditorGUI.EndDisabledGroup();
                 */
 
-                remotePlayerCustomName = EditorGUILayout.TextField(playerControllerCustomName, remotePlayerCustomName);
+                remotePlayerCustomName = EditorGUILayout.TextField(remotePlayerCustomNameGuiContent, remotePlayerCustomName);
 
                 if (GUILayout.Button("Spawn Remote Player"))
                 {

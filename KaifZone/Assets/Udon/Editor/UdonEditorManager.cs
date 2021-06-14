@@ -226,7 +226,7 @@ namespace VRC.Udon.Editor
         {
             foreach(GameObject sceneGameObject in scene.GetRootGameObjects())
             {
-                foreach(UdonBehaviour udonBehaviour in sceneGameObject.GetComponentsInChildren<UdonBehaviour>())
+                foreach(UdonBehaviour udonBehaviour in sceneGameObject.GetComponentsInChildren<UdonBehaviour>(true))
                 {
                     PopulateSerializedProgramAssetReference(udonBehaviour);
                 }
